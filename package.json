@@ -1,0 +1,26 @@
+{
+  "name": "smart-expense-analyzer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "chart.js": "*",
+    "react": "*",
+    "react-chartjs-2": "*",
+    "react-dom": "*",
+    "react-is": "^19.2.4",
+    "react-router-dom": "*",
+    "recharts": "*"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "*",
+    "@vitejs/plugin-react": "*",
+    "tailwindcss": "*",
+    "vite": "*"
+  }
+}
