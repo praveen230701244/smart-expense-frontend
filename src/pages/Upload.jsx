@@ -9,6 +9,7 @@ export default function Upload() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [toast, setToast] = useState("");
 
   const [manual, setManual] = useState({
     amount: "",
@@ -16,6 +17,12 @@ export default function Upload() {
     date: "",
     vendor: "",
   });
+
+  const showToast = (t) => {
+    setToast(t);
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast(""), 1600);
+  };
 
   const uploadFile = async (file) => {
     if (!file) return;
@@ -33,6 +40,7 @@ export default function Upload() {
       }
 
       setMessage("Upload successful. Redirecting to dashboard...");
+      showToast("Uploaded successfully");
       navigate("/dashboard", { state: { refresh: true, ts: Date.now() } });
     } catch (e) {
       setError(e?.message || "Upload failed.");
@@ -61,11 +69,11 @@ export default function Upload() {
         vendor: manual.vendor?.trim() || undefined,
       };
 
-      if (!payload.amount || payload.amount <= 0) throw new Error("Amount must be a positive number.");
-      if (!payload.date) throw new Error("Date is required.");
+      if (!payload.amount || payload.amount <= 0) throw new Error("Enter a valid amount.");
+      if (!payload.date) throw new Error("Pick a date.");
 
       await apiUploadManual(payload);
-      setMessage("Saved manual expense. Redirecting to dashboard...");
+      showToast("Saved");
       setTimeout(() => navigate("/dashboard"), 600);
     } catch (e) {
       setError(e?.message || "Manual entry failed.");
@@ -76,7 +84,13 @@ export default function Upload() {
 
   return (
     <div className="mainContentInner">
-      <h1>Upload</h1>
+      {toast ? <div className="toast">{toast}</div> : null}
+      <div className="dashHeader" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="dashTitle">Add your expenses</div>
+          <div className="dashSubtitle">Upload a PDF/CSV, or add one transaction manually.</div>
+        </div>
+      </div>
       <div className="grid2">
         <div>
           <div
@@ -89,10 +103,8 @@ export default function Upload() {
             onDragLeave={() => setDragActive(false)}
             onDrop={onDrop}
           >
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Drag & drop CSV or PDF</div>
-            <div className="muted">
-              Or click to select a file. We’ll extract expenses and add them to your dashboard.
-            </div>
+            <div style={{ fontWeight: 950, fontSize: 16 }}>Upload statement / receipt</div>
+            <div className="muted">CSV or PDF. We’ll extract transactions automatically.</div>
 
             <input
               type="file"
@@ -111,7 +123,7 @@ export default function Upload() {
 
         <div>
           <div className="card" style={{ padding: 18 }}>
-            <div className="cardTitle" style={{ marginBottom: 14 }}>Manual Entry</div>
+            <div className="cardTitle" style={{ marginBottom: 14 }}>Manual entry</div>
             <form onSubmit={onSubmitManual}>
               <div className="formRow">
                 <label>

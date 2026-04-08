@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "https://skill-gap-backend-goi5.onrender.com";
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 console.log("API BASE:", API_BASE_URL);
 
@@ -18,6 +18,15 @@ export async function apiGetExpenses() {
   const data = await parseJsonSafe(res);
   if (!res.ok) {
     throw new Error(data?.error || "Failed to fetch /expenses");
+  }
+  return data;
+}
+
+export async function apiGetInsights() {
+  const res = await fetch(`${API_BASE_URL}/insights`);
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to fetch /insights");
   }
   return data;
 }
@@ -66,6 +75,15 @@ export async function apiChat(message) {
   const data = await parseJsonSafe(res);
   if (!res.ok) {
     throw new Error(data?.error || "Chat request failed");
+  }
+  return data;
+}
+
+export async function apiReset() {
+  const res = await fetch(`${API_BASE_URL}/reset`, { method: "DELETE" });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Reset failed");
   }
   return data;
 }

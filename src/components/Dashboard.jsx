@@ -1,63 +1,70 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { apiGetExpenses } from "../services/api";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-import SummaryCards from "./SummaryCards.jsx";
-import ForecastChart from "./ForecastChart.jsx";
-import Anomalies from "./Anomalies.jsx";
-import RiskScore from "./RiskScore.jsx";
-import GrowthTrends from "./GrowthTrends.jsx";
-import Suggestions from "./Suggestions.jsx";
+import { apiGetExpenses, apiGetInsights, apiReset } from "../services/api";
+import ChatPanel from "./ChatPanel.jsx";
 
-function SkeletonCards() {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-28 animate-pulse rounded-2xl bg-white/70 shadow-lg" />
-      ))}
-    </div>
-  );
+function riskColor(score) {
+  const s = Number(score || 0);
+  if (s >= 70) return { fill: "#ef4444", label: "High" };
+  if (s >= 40) return { fill: "#f59e0b", label: "Medium" };
+  return { fill: "#22c55e", label: "Low" };
+}
+
+function focusEmoji(risk) {
+  const s = Number(risk || 0);
+  if (s >= 70) return "⚠️";
+  if (s >= 40) return "🟡";
+  return "✅";
+}
+
+function formatINR(n) {
+  const x = Number(n || 0);
+  return `₹${x.toFixed(2)}`;
 }
 
 export default function Dashboard() {
-  const location = useLocation();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
-  const [expenses, setExpenses] = useState([]);
+  const [topInsights, setTopInsights] = useState([]);
+  const [resetting, setResetting] = useState(false);
 
-  // 🔥 LOAD FROM CACHE FIRST (FAST UI)
-  useEffect(() => {
-    const cached = localStorage.getItem("dashboardData");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setSummary(parsed?.summary || null);
-        setExpenses(parsed?.expenses || []);
-        setLoading(false);
-      } catch {}
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
+      setSummary(exp?.summary || null);
+      setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
+    } catch (e) {
+      setError(e?.message || "Failed to load dashboard.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  // 🔥 ALWAYS FETCH WHEN NAVIGATING FROM UPLOAD
   useEffect(() => {
     let active = true;
-    setLoading(true);
-
     (async () => {
       try {
-        console.log("Fetching dashboard data...");
-
-        const data = await apiGetExpenses();
-
+        const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
         if (!active) return;
-
-        setSummary(data?.summary || null);
-        setExpenses(Array.isArray(data?.expenses) ? data.expenses : []);
-
-        // ✅ SAVE CACHE
-        localStorage.setItem("dashboardData", JSON.stringify(data));
+        setSummary(exp?.summary || null);
+        setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
       } catch (e) {
         if (!active) return;
         setError(e?.message || "Failed to load dashboard.");
@@ -65,71 +72,183 @@ export default function Dashboard() {
         if (active) setLoading(false);
       }
     })();
-
     return () => {
       active = false;
     };
-  }, [location.state]); // 🔥 KEY FIX
+  }, []);
 
-  const hasData = useMemo(
-    () => expenses.length > 0 && Number(summary?.totalExpenses || 0) > 0,
-    [expenses, summary]
-  );
+  const total = Number(summary?.totalExpenses || 0);
+  const topCategory = summary?.topCategory?.category || "N/A";
+  const topCategoryAmt = Number(summary?.topCategory?.total || 0);
+  const risk = Number(summary?.riskScore || 0);
+  const riskMeta = riskColor(risk);
+  const topPct = total > 0 ? Math.round((topCategoryAmt / total) * 100) : 0;
+
+  const chartData = useMemo(() => {
+    const rows = summary?.categoryBreakdown || [];
+    return rows.map((r) => ({ category: r.category, amount: Number(r.total || 0) }));
+  }, [summary]);
+
+  const pieData = chartData;
+  const pieColors = ["#60a5fa", "#34d399", "#f59e0b", "#fb7185", "#a78bfa", "#22c55e", "#38bdf8"];
+
+  const hasData = total > 0 && chartData.length > 0;
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl bg-gradient-to-r from-indigo-600 via-violet-600 to-sky-500 p-6 text-white shadow-2xl">
-        <h1 className="text-2xl font-extrabold md:text-3xl">
-          AI Expense Intelligence Dashboard
-        </h1>
-        <p className="mt-1 text-indigo-100">
-          Real-time financial insights powered by ML, anomaly detection, and AI forecasting.
-        </p>
-      </section>
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-          {error}
+    <div className="mainContentInner">
+      <div className="dashHeader">
+        <div>
+          <div className="dashTitle">Your Financial Dashboard</div>
+          <div className="dashSubtitle">Clean insights, personalized advice, no clutter.</div>
         </div>
-      )}
-
-      {loading && (
-        <div className="space-y-4">
-          <SkeletonCards />
-          <div className="h-72 animate-pulse rounded-2xl bg-white/70 shadow-lg" />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="btn btnSecondary"
+            disabled={resetting}
+            onClick={async () => {
+              setResetting(true);
+              setError("");
+              try {
+                await apiReset();
+                setSummary(null);
+                setTopInsights([]);
+                await load();
+              } catch (e) {
+                setError(e?.message || "Reset failed.");
+              } finally {
+                setResetting(false);
+              }
+            }}
+          >
+            {resetting ? "Resetting…" : "Reset Data"}
+          </button>
         </div>
-      )}
+      </div>
 
-      {!loading && !error && !hasData && (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-8 text-center text-slate-600 shadow-lg">
-          <div className="text-lg font-semibold text-slate-800">
-            Upload expenses to see insights
+      {error ? <div className="errorBox">{error}</div> : null}
+      {loading ? (
+        <div className="dashSkeleton">
+          <div className="skeletonLine" />
+          <div className="skeletonGrid">
+            <div className="skeletonCard" />
+            <div className="skeletonCard" />
           </div>
-          <div className="mt-1">
-            Your AI dashboard will light up with forecasts, risks, anomalies, and savings tips.
-          </div>
+          <div className="skeletonCard" style={{ height: 220 }} />
         </div>
-      )}
+      ) : null}
 
-      {!loading && !error && hasData && (
-        <div className="animate-[fadein_0.4s_ease-in] space-y-5">
-          <SummaryCards summary={summary} />
+      {!loading && !error && !hasData ? (
+        <div className="emptyState">
+          <div className="emptyStateTitle">Upload expenses to get insights</div>
+          <div className="muted">Add a CSV/PDF or a manual entry to see your overview and AI insights.</div>
+        </div>
+      ) : null}
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <div className="xl:col-span-2">
-              <ForecastChart summary={summary} />
+      {!loading && !error && hasData ? (
+        <div className="dashGrid">
+          {/* 1) Focus Insight */}
+          <div className="focusInsight card">
+            <div className="focusInsightText">
+              <span style={{ marginRight: 8 }}>{focusEmoji(risk)}</span>
+              You spent <b>{formatINR(topCategoryAmt)}</b> on <b>{topCategory}</b> ({topPct}% of your expenses)
             </div>
-            <RiskScore score={summary?.riskScore} />
+            <div className="focusInsightMeta">
+              Risk: <b style={{ color: riskMeta.fill }}>{riskMeta.label}</b> ({risk}/100)
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <GrowthTrends growthTrends={summary?.growthTrends} />
-            <Anomalies anomalies={summary?.anomalies} />
+          {/* 2) Charts (bar + pie) */}
+          <div className="dashSection">
+            <div className="dashCharts">
+              <div className="card">
+                <div className="dashSectionTitle" style={{ marginTop: 0 }}>📈 Category Spend (Bar)</div>
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                      <XAxis dataKey="category" tick={{ fill: "rgba(229,231,235,0.85)", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "rgba(229,231,235,0.85)", fontSize: 12 }} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0f172a",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: 12,
+                          color: "#e5e7eb",
+                        }}
+                        labelStyle={{ color: "#e5e7eb" }}
+                        formatter={(v) => [formatINR(v), "Amount"]}
+                      />
+                      <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
+                        {chartData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.category === topCategory ? "rgba(245,158,11,0.92)" : "rgba(96,165,250,0.85)"}
+                          />
+                        ))}
+                        <LabelList
+                          dataKey="amount"
+                          position="top"
+                          formatter={(v) => `₹${Number(v).toFixed(0)}`}
+                          fill="rgba(229,231,235,0.92)"
+                          fontSize={12}
+                          fontWeight={900}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="dashSectionTitle" style={{ marginTop: 0 }}>🧩 Distribution (Pie)</div>
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0f172a",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: 12,
+                          color: "#e5e7eb",
+                        }}
+                        formatter={(v, _n, p) => {
+                          const pct = Math.round(((Number(v) || 0) / Math.max(1, total)) * 100);
+                          return [`${formatINR(v)} (${pct}%)`, p?.payload?.category || "Amount"];
+                        }}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        wrapperStyle={{ color: "rgba(229,231,235,0.85)", fontWeight: 800, fontSize: 12 }}
+                      />
+                      <Pie
+                        data={pieData}
+                        dataKey="amount"
+                        nameKey="category"
+                        innerRadius={58}
+                        outerRadius={95}
+                        paddingAngle={2}
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell
+                            key={`p-${index}`}
+                            fill={entry.category === topCategory ? "rgba(245,158,11,0.92)" : pieColors[index % pieColors.length]}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <Suggestions suggestions={summary?.savingsSuggestions} />
+          {/* 3) Chatbot */}
+          <div className="dashSection">
+            <div className="dashSectionTitle">🤖 Chat</div>
+            <ChatPanel compact />
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
