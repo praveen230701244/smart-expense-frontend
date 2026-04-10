@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "chart.js": "*",
-    "firebase": "^11.10.0",
     "react": "*",
     "react-chartjs-2": "*",
     "react-dom": "*",

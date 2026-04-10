@@ -1,17 +1,4 @@
-import { auth, authDisabled } from "../firebase";
-
 const API_BASE_URL = import.meta.env.VITE_API_URL;
-
-async function authHeaders() {
-  if (authDisabled) return {};
-  if (!auth?.currentUser) return {};
-  try {
-    const t = await auth.currentUser.getIdToken();
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  } catch {
-    return {};
-  }
-}
 
 async function parseJsonSafe(res) {
   const text = await res.text();
@@ -26,7 +13,6 @@ async function parseJsonSafe(res) {
 async function fetchWithAuth(url, options = {}) {
   const headers = {
     ...(options.headers || {}),
-    ...(await authHeaders()),
   };
   return fetch(url, { ...options, headers });
 }
