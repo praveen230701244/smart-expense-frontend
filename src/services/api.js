@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = "https://ai-financial-copilot-backend.onrender.com";
 
 async function parseJsonSafe(res) {
   const text = await res.text();
