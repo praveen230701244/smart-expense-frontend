@@ -17,7 +17,7 @@ export default function Sidebar() {
           Upload
         </Link>
         <Link to="/chatbot" className={linkClass("/chatbot")}>
-          Chatbot
+          Advisor
         </Link>
       </div>
     </aside>

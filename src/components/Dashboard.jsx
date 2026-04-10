@@ -6,6 +6,8 @@ import {
   Cell,
   LabelList,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -16,6 +18,7 @@ import {
 
 import { apiGetExpenses, apiGetInsights, apiReset } from "../services/api";
 import ChatPanel from "./ChatPanel.jsx";
+import CoPilotTools from "./CoPilotTools.jsx";
 
 function riskColor(score) {
   const s = Number(score || 0);
@@ -41,6 +44,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
   const [topInsights, setTopInsights] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [resetting, setResetting] = useState(false);
 
   const load = async () => {
@@ -49,6 +53,7 @@ export default function Dashboard() {
     try {
       const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
       setSummary(exp?.summary || null);
+      setExpenses(Array.isArray(exp?.expenses) ? exp.expenses : []);
       setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
     } catch (e) {
       setError(e?.message || "Failed to load dashboard.");
@@ -64,6 +69,7 @@ export default function Dashboard() {
         const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
         if (!active) return;
         setSummary(exp?.summary || null);
+        setExpenses(Array.isArray(exp?.expenses) ? exp.expenses : []);
         setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
       } catch (e) {
         if (!active) return;
@@ -92,14 +98,35 @@ export default function Dashboard() {
   const pieData = chartData;
   const pieColors = ["#60a5fa", "#34d399", "#f59e0b", "#fb7185", "#a78bfa", "#22c55e", "#38bdf8"];
 
+  const lineData = useMemo(() => {
+    const mt = summary?.monthlyTrend || [];
+    const rows = mt.map((m) => ({
+      label: String(m.month || "").slice(2),
+      actual: Number(m.total || 0),
+      forecast: null,
+    }));
+    const pred = summary?.prediction;
+    if (pred?.predictedTotal != null && pred?.nextMonth) {
+      rows.push({
+        label: String(pred.nextMonth).slice(2),
+        actual: null,
+        forecast: Number(pred.predictedTotal),
+      });
+    }
+    return rows;
+  }, [summary]);
+
+  const savingsHint = summary?.savingsSuggestions?.[0];
+  const waste = summary?.wastefulSummary;
+
   const hasData = total > 0 && chartData.length > 0;
 
   return (
     <div className="mainContentInner">
       <div className="dashHeader">
         <div>
-          <div className="dashTitle">Your Financial Dashboard</div>
-          <div className="dashSubtitle">Clean insights, personalized advice, no clutter.</div>
+          <div className="dashTitle">Co-Pilot Overview</div>
+          <div className="dashSubtitle">Your data, isolated. Insights update in real time.</div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button
@@ -147,20 +174,79 @@ export default function Dashboard() {
       {!loading && !error && hasData ? (
         <div className="dashGrid">
           {/* 1) Focus Insight */}
-          <div className="focusInsight card">
+          <div className="focusInsight card chartFadeIn">
             <div className="focusInsightText">
               <span style={{ marginRight: 8 }}>{focusEmoji(risk)}</span>
               You spent <b>{formatINR(topCategoryAmt)}</b> on <b>{topCategory}</b> ({topPct}% of your expenses)
             </div>
             <div className="focusInsightMeta">
               Risk: <b style={{ color: riskMeta.fill }}>{riskMeta.label}</b> ({risk}/100)
+              {waste?.discretionarySharePct != null ? (
+                <> · Discretionary ~{waste.discretionarySharePct}%</>
+              ) : null}
             </div>
           </div>
+
+          <div className="coSummaryRow">
+            <div className="card coSummaryCard chartFadeIn">
+              <div className="cardTitle">Total spend</div>
+              <div className="metricValue" style={{ fontSize: 22 }}>{formatINR(total)}</div>
+            </div>
+            <div className="card coSummaryCard chartFadeIn" style={{ animationDelay: "0.06s" }}>
+              <div className="cardTitle">Risk score</div>
+              <div className="metricValue" style={{ fontSize: 22, color: riskMeta.fill }}>
+                {risk}/100
+              </div>
+            </div>
+            <div className="card coSummaryCard chartFadeIn" style={{ animationDelay: "0.12s" }}>
+              <div className="cardTitle">Savings lever</div>
+              <div className="metricValue" style={{ fontSize: 16 }}>
+                {savingsHint
+                  ? `Cut ${savingsHint.category} ~${savingsHint.recommendedCutPct}%`
+                  : "Upload more months"}
+              </div>
+            </div>
+          </div>
+
+          {lineData.length > 1 ? (
+            <div className="card chartFadeIn" style={{ animationDelay: "0.08s" }}>
+              <div className="dashSectionTitle" style={{ marginTop: 0 }}>📉 Monthly trend & forecast</div>
+              <div style={{ height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={lineData} margin={{ top: 12, right: 12, left: 0, bottom: 8 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: "rgba(229,231,235,0.8)", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "rgba(229,231,235,0.8)", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#0f172a",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 12,
+                        color: "#e5e7eb",
+                      }}
+                      formatter={(v) => (v === null || v === undefined ? ["—", ""] : [formatINR(v), ""])}
+                    />
+                    <Line type="monotone" dataKey="actual" name="Actual" stroke="#60a5fa" strokeWidth={3} dot />
+                    <Line
+                      type="monotone"
+                      dataKey="forecast"
+                      name="Forecast"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      dot={{ r: 5 }}
+                    />
+                    <Legend />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : null}
 
           {/* 2) Charts (bar + pie) */}
           <div className="dashSection">
             <div className="dashCharts">
-              <div className="card">
+              <div className="card chartFadeIn">
                 <div className="dashSectionTitle" style={{ marginTop: 0 }}>📈 Category Spend (Bar)</div>
                 <div style={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -199,8 +285,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="card">
-                <div className="dashSectionTitle" style={{ marginTop: 0 }}>🧩 Distribution (Pie)</div>
+              <div className="card chartFadeIn" style={{ animationDelay: "0.05s" }}>
+                <div className="dashSectionTitle" style={{ marginTop: 0 }}>🧩 Distribution (donut)</div>
                 <div style={{ height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -242,9 +328,26 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* 3) Chatbot */}
           <div className="dashSection">
-            <div className="dashSectionTitle">🤖 Chat</div>
+            <div className="dashSectionTitle">🛠 Co-Pilot tools</div>
+            <CoPilotTools summary={summary} expenses={expenses} onDataChanged={load} />
+          </div>
+
+          <div className="dashSection">
+            <div className="dashSectionTitle">✨ AI insights</div>
+            <div className="card">
+              <ul className="dashInsights">
+                {(topInsights || []).slice(0, 6).map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+              {!topInsights?.length ? <div className="muted">Insights appear as you add transactions.</div> : null}
+            </div>
+          </div>
+
+          {/* Chatbot */}
+          <div className="dashSection">
+            <div className="dashSectionTitle">🤖 Co-Pilot chat</div>
             <ChatPanel compact />
           </div>
         </div>

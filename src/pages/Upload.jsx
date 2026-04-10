@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { apiUploadCsv, apiUploadManual, apiUploadPdf } from "../services/api";
+import { apiUploadCsv, apiUploadImage, apiUploadManual, apiUploadPdf } from "../services/api";
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -35,8 +35,10 @@ export default function Upload() {
         await apiUploadCsv(file);
       } else if (name.endsWith(".pdf")) {
         await apiUploadPdf(file);
+      } else if (/\.(png|jpe?g|webp)$/i.test(name)) {
+        await apiUploadImage(file);
       } else {
-        throw new Error("Unsupported file type. Upload CSV or PDF.");
+        throw new Error("Unsupported file type. Upload CSV, PDF, or receipt image.");
       }
 
       setMessage("Upload successful. Redirecting to dashboard...");
@@ -104,11 +106,11 @@ export default function Upload() {
             onDrop={onDrop}
           >
             <div style={{ fontWeight: 950, fontSize: 16 }}>Upload statement / receipt</div>
-            <div className="muted">CSV or PDF. We’ll extract transactions automatically.</div>
+            <div className="muted">CSV, PDF, or image (PNG/JPG) with OCR when Tesseract is installed on the server.</div>
 
             <input
               type="file"
-              accept=".csv,.pdf"
+              accept=".csv,.pdf,.png,.jpg,.jpeg,.webp"
               disabled={busy}
               onChange={(e) => uploadFile(e.target.files?.[0])}
               style={{ marginTop: 6 }}
