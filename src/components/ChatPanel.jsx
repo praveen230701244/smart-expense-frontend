@@ -30,11 +30,11 @@ export default function ChatPanel({ compact = false }) {
     };
   }, []);
 
-  const addAssistantTyping = (fullText) => {
+  const addAssistantTyping = (fullText, source) => {
     const text = String(fullText || "").trim() || "I’m having trouble analyzing right now, try again.";
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-    setMessages((prev) => [...prev, { id, role: "assistant", content: "", typing: true }]);
+    setMessages((prev) => [...prev, { id, role: "assistant", content: "", typing: true, source }]);
 
     let i = 0;
     const speedMs = 14;
@@ -43,11 +43,15 @@ export default function ChatPanel({ compact = false }) {
     typingTimerRef.current = setInterval(() => {
       i += Math.max(1, Math.floor(text.length / 220));
       const chunk = text.slice(0, i);
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: chunk } : m)));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, content: chunk, source } : m))
+      );
       if (i >= text.length) {
         clearInterval(typingTimerRef.current);
         typingTimerRef.current = null;
-        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, typing: false } : m)));
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, typing: false, source } : m))
+        );
       }
     }, speedMs);
   };
@@ -63,10 +67,10 @@ export default function ChatPanel({ compact = false }) {
 
     try {
       const data = await apiChat(message);
-      addAssistantTyping(data?.advice || "");
+      addAssistantTyping(data?.advice || "", data?.source);
     } catch (e) {
       setError(e?.message || "Chat request failed.");
-      addAssistantTyping("I’m having trouble analyzing right now, try again.");
+      addAssistantTyping("I’m having trouble analyzing right now, try again.", "fallback");
     } finally {
       setLoading(false);
     }
@@ -97,10 +101,15 @@ export default function ChatPanel({ compact = false }) {
 
           {messages.map((m, idx) => (
             <div
-              key={`${m.role}-${idx}`}
+              key={m.id || `${m.role}-${idx}`}
               className={`bubbleRow ${m.role === "user" ? "bubbleUser" : "bubbleAssistant"}`}
             >
               <div className="bubble">
+                {m.role === "assistant" && m.source && !m.typing ? (
+                  <div className="muted" style={{ fontSize: 11, fontWeight: 800, marginBottom: 6 }}>
+                    {m.source === "gemini" ? "🤖 Powered by Gemini" : "⚠ Basic Insights"}
+                  </div>
+                ) : null}
                 {m.content}
                 {m.typing ? <span className="typingCursor">▍</span> : null}
               </div>

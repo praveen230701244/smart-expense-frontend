@@ -1,4 +1,6 @@
-const API_BASE_URL = "https://ai-financial-copilot-backend.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ai-financial-copilot-backend.onrender.com";
+
 
 async function parseJsonSafe(res) {
   const text = await res.text();
@@ -26,11 +28,43 @@ export async function apiGetExpenses() {
   return data;
 }
 
+/** Full analysis: same as /expenses plus profile_used, ai_advice, budget_analysis */
+export async function apiAnalyze() {
+  const res = await fetchWithAuth(`${API_BASE_URL}/analyze`);
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to fetch /analyze");
+  }
+  return data;
+}
+
 export async function apiGetInsights() {
   const res = await fetchWithAuth(`${API_BASE_URL}/insights`);
   const data = await parseJsonSafe(res);
   if (!res.ok) {
     throw new Error(data?.error || "Failed to fetch /insights");
+  }
+  return data;
+}
+
+export async function apiGetProfile() {
+  const res = await fetchWithAuth(`${API_BASE_URL}/profile`);
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to fetch profile");
+  }
+  return data;
+}
+
+export async function apiSaveProfile(payload) {
+  const res = await fetchWithAuth(`${API_BASE_URL}/profile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to save profile");
   }
   return data;
 }

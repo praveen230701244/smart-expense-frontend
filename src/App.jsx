@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Upload from "./pages/Upload.jsx";
 import Chatbot from "./pages/Chatbot.jsx";
 import Login from "./pages/Login.jsx";
+import Profile from "./pages/Profile.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -42,6 +43,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Chatbot />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/setup-profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />

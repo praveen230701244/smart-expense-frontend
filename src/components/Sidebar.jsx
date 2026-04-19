@@ -19,6 +19,9 @@ export default function Sidebar() {
         <Link to="/chatbot" className={linkClass("/chatbot")}>
           Advisor
         </Link>
+        <Link to="/profile" className={linkClass("/profile")}>
+          Profile
+        </Link>
       </div>
     </aside>
   );

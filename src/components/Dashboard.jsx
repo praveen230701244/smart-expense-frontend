@@ -16,7 +16,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { apiGetExpenses, apiGetInsights, apiReset } from "../services/api";
+import { apiAnalyze, apiGetInsights, apiReset } from "../services/api";
 import ChatPanel from "./ChatPanel.jsx";
 import CoPilotTools from "./CoPilotTools.jsx";
 
@@ -45,15 +45,21 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [topInsights, setTopInsights] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [analyzeExtra, setAnalyzeExtra] = useState(null);
   const [resetting, setResetting] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
+      const [exp, ins] = await Promise.all([apiAnalyze(), apiGetInsights()]);
       setSummary(exp?.summary || null);
       setExpenses(Array.isArray(exp?.expenses) ? exp.expenses : []);
+      setAnalyzeExtra({
+        profile_used: exp?.profile_used,
+        ai_advice: exp?.ai_advice,
+        budget_analysis: exp?.budget_analysis,
+      });
       setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
     } catch (e) {
       setError(e?.message || "Failed to load dashboard.");
@@ -66,10 +72,15 @@ export default function Dashboard() {
     let active = true;
     (async () => {
       try {
-        const [exp, ins] = await Promise.all([apiGetExpenses(), apiGetInsights()]);
+        const [exp, ins] = await Promise.all([apiAnalyze(), apiGetInsights()]);
         if (!active) return;
         setSummary(exp?.summary || null);
         setExpenses(Array.isArray(exp?.expenses) ? exp.expenses : []);
+        setAnalyzeExtra({
+          profile_used: exp?.profile_used,
+          ai_advice: exp?.ai_advice,
+          budget_analysis: exp?.budget_analysis,
+        });
         setTopInsights(Array.isArray(ins?.topInsights) ? ins.topInsights : []);
       } catch (e) {
         if (!active) return;
@@ -118,6 +129,11 @@ export default function Dashboard() {
 
   const savingsHint = summary?.savingsSuggestions?.[0];
   const waste = summary?.wastefulSummary;
+  const budget = analyzeExtra?.budget_analysis;
+  const aiAdvice = analyzeExtra?.ai_advice;
+  const income = budget?.income != null ? Number(budget.income) : null;
+  const savingsRatePct =
+    budget?.savings_rate != null ? Math.round(Number(budget.savings_rate) * 1000) / 10 : null;
 
   const hasData = total > 0 && chartData.length > 0;
 
@@ -186,6 +202,68 @@ export default function Dashboard() {
               ) : null}
             </div>
           </div>
+
+          {budget && (income != null && income > 0 ? (
+            <div className="card chartFadeIn" style={{ animationDelay: "0.02s" }}>
+              <div className="dashSectionTitle" style={{ marginTop: 0 }}>
+                Your plan vs spending
+              </div>
+              <div className="coSummaryRow">
+                <div className="card coSummaryCard" style={{ boxShadow: "none", padding: 12 }}>
+                  <div className="cardTitle">Income (profile)</div>
+                  <div className="metricValue" style={{ fontSize: 18 }}>{formatINR(income)}</div>
+                </div>
+                <div className="card coSummaryCard" style={{ boxShadow: "none", padding: 12 }}>
+                  <div className="cardTitle">Recorded spend</div>
+                  <div className="metricValue" style={{ fontSize: 18 }}>{formatINR(total)}</div>
+                </div>
+                <div className="card coSummaryCard" style={{ boxShadow: "none", padding: 12 }}>
+                  <div className="cardTitle">Savings rate</div>
+                  <div className="metricValue" style={{ fontSize: 18 }}>
+                    {savingsRatePct != null ? `${savingsRatePct}% of income` : "—"}
+                  </div>
+                </div>
+              </div>
+              {budget?.ideal_allocation ? (
+                <div className="muted" style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5 }}>
+                  50/30/20 targets — needs {formatINR(budget.ideal_allocation.needs)}, wants{" "}
+                  {formatINR(budget.ideal_allocation.wants)}, savings {formatINR(budget.ideal_allocation.savings)}.
+                  {budget?.actual_allocation_pct ? (
+                    <>
+                      {" "}
+                      Your mix: needs ~{budget.actual_allocation_pct.needs}% · wants ~
+                      {budget.actual_allocation_pct.wants}% · implied savings ~
+                      {budget.actual_allocation_pct.implied_savings}%.
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+              {Array.isArray(budget?.improvement_suggestions) && budget.improvement_suggestions.length ? (
+                <ul className="dashInsights" style={{ marginTop: 12 }}>
+                  {budget.improvement_suggestions.slice(0, 5).map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : budget?.profile_required ? (
+            <div className="card chartFadeIn muted" style={{ animationDelay: "0.02s" }}>
+              <div className="dashSectionTitle" style={{ marginTop: 0 }}>Personalized budget</div>
+              <p style={{ margin: "8px 0 0" }}>
+                Add your income under Profile to see 50/30/20 comparison and savings rate here.
+              </p>
+            </div>
+          ) : null)}
+
+          {(aiAdvice?.advice || aiAdvice?.summary) ? (
+            <div className="card chartFadeIn" style={{ animationDelay: "0.03s" }}>
+              <div className="dashSectionTitle" style={{ marginTop: 0 }}>AI advisor</div>
+              <div className="muted" style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>
+                {aiAdvice.source === "gemini" ? "🤖 Powered by Gemini" : "⚠ Basic Insights"}
+              </div>
+              <p style={{ margin: "8px 0 0", lineHeight: 1.55 }}>{aiAdvice.advice || aiAdvice.summary}</p>
+            </div>
+          ) : null}
 
           <div className="coSummaryRow">
             <div className="card coSummaryCard chartFadeIn">
